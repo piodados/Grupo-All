@@ -100,7 +100,18 @@ let OFF={...CFG.off},SAVING=0,SAVEQ=Promise.resolve();
 let ORD=(CFG.ord||[]).slice();
 // ---- Textos editáveis: TX guarda só o que foi alterado (id → lista de campos); BO é o texto original ----
 let TX={...(CFG.tx||{})};
-const BO=B.map(b=>({...b,p:b.p.map(p=>({...p,b:p.b.map(x=>x.slice())}))}));const CH0=CHAMADO;
+// ---- Blocos e categorias criados na gestão: ADD só cresce (nunca reordena), assim os ids b#p#c# continuam estáveis ----
+const cl=b=>({...b,p:b.p.map(p=>({...p,b:p.b.map(x=>x.slice())}))});
+const B0=B.map(cl),BO=[];const CH0=CHAMADO;
+const lim=(v,n)=>String(v==null?'':v).trim().slice(0,n);
+function normAdd(a){const r={nb:[],np:[]};if(!a||typeof a!='object')return r;
+(Array.isArray(a.nb)?a.nb:[]).forEach(x=>{if(x&&lim(x.n,80)&&r.nb.length<30)r.nb.push({n:lim(x.n,80),d:lim(x.d,400)})});
+const tot=B0.length+r.nb.length;
+(Array.isArray(a.np)?a.np:[]).forEach(x=>{if(x&&Number.isInteger(x.b)&&x.b>=0&&x.b<tot&&lim(x.t,100)&&r.np.length<150)r.np.push({b:x.b,t:lim(x.t,100),k:lim(x.k,200),x:(Array.isArray(x.x)?x.x:[]).map(z=>lim(z,4000)).filter(Boolean).slice(0,40)})});return r}
+let ADD=normAdd(CFG.add);
+function buildB(){B.length=0;B0.forEach(b=>B.push(cl(b)));ADD.nb.forEach(n=>B.push({n:n.n,d:n.d,p:[]}));
+ADD.np.forEach(q=>{const b=B[q.b];if(b)b.p.push({t:q.t,k:q.k,b:q.x.map(z=>['p',z])})});BO.length=0;B.forEach(b=>BO.push(cl(b)))}
+buildB();
 const LN=a=>Array.isArray(a)?a.join('\n'):String(a==null?'':a);
 // Campos editáveis de cada tipo de item: [{r:rótulo, v:valor atual, m:multilinha}]
 function camposItem(x){const t=x[0];
@@ -146,9 +157,29 @@ function gestaoHtml(){
 const ord=ordem();let vn=0;const blocks=ord.map((i,pos)=>{const b=B[i],bid='b'+i;const nb=OFF[bid]?'–':++vn;
 const pages=b.p.map((p,j)=>{const pid=bid+'p'+j;
 const rows=p.b.map((x,k)=>{const cid=pid+'c'+k;return'<div class="row'+(OFF[cid]?' off':'')+'"><span class="lab">'+h(labI(x))+'</span>'+(camposItem(x).length?ed(cid):'')+sw(cid,!OFF[cid])+'</div>'}).join('');
-return'<details class="lv2'+(OFF[pid]?' off':'')+'" data-id="'+pid+'"><summary><span class="ch">›</span><span class="lab"><b>'+h(p.t)+'</b><small>'+p.b.length+' iten'+(p.b.length==1?'':'s')+'</small></span><span class="tag">Oculto</span>'+ed(pid)+sw(pid,!OFF[pid])+'</summary><div class="kids">'+rows+'</div></details>'}).join('');
-return'<details class="lv1'+(OFF[bid]?' off':'')+'" data-b="'+i+'" data-id="'+bid+'"><summary><span class="ch">›</span><span class="lab"><b><span class="bn">'+nb+'</span>. '+h(b.n)+'</b><small>'+(b.p.length?b.p.length+' tela'+(b.p.length==1?'':'s'):'Sem telas ainda')+'</small></span><span class="tag">Oculto</span><span class="mvs"><button type="button" class="mv" aria-label="Mover para cima" '+(pos==0?'disabled':'')+' onclick="mv(event,'+i+',-1)">↑</button><button type="button" class="mv" aria-label="Mover para baixo" '+(pos==ord.length-1?'disabled':'')+' onclick="mv(event,'+i+',1)">↓</button></span>'+ed(bid)+sw(bid,!OFF[bid])+'</summary><div class="kids">'+(pages||'<p class="mu" style="padding:8px 12px">Ainda não há telas neste bloco.</p>')+'</div></details>'}).join('');
-return'<main><h2>Gestão do aplicativo</h2><p class="sub">Ative ou desative cada item. O que estiver desligado some do guia para todos os usuários. Use ↑ e ↓ para mudar a ordem dos blocos: a numeração segue sempre a ordem e só conta os blocos exibidos. Use ✎ para editar o texto de um bloco, de uma tela ou de um item.</p>'+''+'<p id="gs" class="mu" role="status"></p><div class="tree" id="tree" onchange="flag(event)">'+blocks+'</div><button class="btn l" onclick="resetAll()">Reativar todos os itens</button></main>'}
+return'<details class="lv2'+(OFF[pid]?' off':'')+'" data-id="'+pid+'"><summary><span class="ch">›</span><span class="lab"><b>'+h(p.t)+'</b><small>'+p.b.length+' iten'+(p.b.length==1?'':'s')+'</small></span><span class="tag">Oculto</span>'+ed(pid)+sw(pid,!OFF[pid])+'</summary><div class="kids">'+rows+(adP(i,j)?'<button type="button" class="btn l" style="margin:8px 0 0" onclick="addTxt('+i+','+j+')">+ Adicionar texto nesta categoria</button>':'')+'</div></details>'}).join('');
+return'<details class="lv1'+(OFF[bid]?' off':'')+'" data-b="'+i+'" data-id="'+bid+'"><summary><span class="ch">›</span><span class="lab"><b><span class="bn">'+nb+'</span>. '+h(b.n)+'</b><small>'+(b.p.length?b.p.length+' tela'+(b.p.length==1?'':'s'):'Sem telas ainda')+'</small></span><span class="tag">Oculto</span><span class="mvs"><button type="button" class="mv" aria-label="Mover para cima" '+(pos==0?'disabled':'')+' onclick="mv(event,'+i+',-1)">↑</button><button type="button" class="mv" aria-label="Mover para baixo" '+(pos==ord.length-1?'disabled':'')+' onclick="mv(event,'+i+',1)">↓</button></span>'+ed(bid)+sw(bid,!OFF[bid])+'</summary><div class="kids">'+(pages||'<p class="mu" style="padding:8px 12px">Ainda não há telas neste bloco.</p>')+'<button type="button" class="btn l" style="margin:8px 0 0" onclick="novaCat('+i+')">+ Nova categoria neste bloco</button></div></details>'}).join('');
+return'<main><h2>Gestão do aplicativo</h2><p class="sub">Ative ou desative cada item. O que estiver desligado some do guia para todos os usuários. Use ↑ e ↓ para mudar a ordem dos blocos: a numeração segue sempre a ordem e só conta os blocos exibidos. Use ✎ para editar o texto de um bloco, de uma tela ou de um item. Use + para criar um novo bloco ou uma nova categoria dentro de um bloco.</p>'+''+'<p id="gs" class="mu" role="status"></p><div class="tree" id="tree" onchange="flag(event)">'+blocks+'</div><button class="btn" onclick="novoBloco()">+ Novo bloco</button><button class="btn l" onclick="resetAll()">Reativar todos os itens</button></main>'}
+// Índice, dentro de ADD.np, da categoria criada j do bloco i (ou -1 se for uma categoria original)
+function adIx(i,j){const base=i<B0.length?B0[i].p.length:0;if(j<base)return-1;let n=-1,c=0;ADD.np.forEach((q,x)=>{if(q.b==i){if(c==j-base)n=x;c++}});return n}
+const adP=(i,j)=>adIx(i,j)>=0;
+// Janela de cadastro: revisa a ortografia ao salvar e só grava depois de salvar na nuvem
+function formAdd(tt,cs,salvar){const d=ov('<h3>'+h(tt)+'</h3>'+cs.map((c,n)=>'<label>'+h(c.r)+(c.m?'<textarea id="tx'+n+'" rows="'+(c.rows||4)+'"></textarea>':'<input id="tx'+n+'" type="text" autocomplete="off">')+'</label>').join('')+'<p id="ms" class="mu"></p><button class="btn" id="sv">Salvar</button><button class="btn l" id="cn">Cancelar</button>');
+const $q=q=>d.querySelector(q);$q('#cn').onclick=()=>d.remove();
+const grava=async f=>{$q('#ms').textContent='Salvando…';try{await salvar(f);d.remove();reGest();toast('Salvo para todos os usuários.')}catch(er){d.style.display='';$q('#ms').textContent='Não foi possível salvar: '+er.message}};
+$q('#sv').onclick=async()=>{const f=cs.map((c,n)=>$q('#tx'+n).value.trim());
+if(!f[0]){$q('#ms').textContent='Preencha o primeiro campo ('+cs[0].r.toLowerCase()+').';return}
+const bt=$q('#sv');bt.disabled=true;bt.textContent='Revisando a ortografia…';$q('#ms').textContent='';
+let itens=[];try{const r=await api('/api/revisar',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOK},body:JSON.stringify({textos:f})});itens=r.itens||[]}catch(er){$q('#ms').textContent='Revisão ortográfica indisponível agora. Salvando sem revisar.'}
+bt.disabled=false;bt.textContent='Salvar';
+if(!itens.length)return grava(f);
+revisao(d,f,itens,cs,grava)}}
+async function mudaAdd(fn){const prev=JSON.stringify(ADD);try{fn();ADD=normAdd(ADD);buildB();applyTx();await saveCfg()}catch(e){ADD=normAdd(JSON.parse(prev));buildB();applyTx();throw e}}
+function novoBloco(){if(B.length>=99){toast('Limite de blocos atingido.');return}
+formAdd('Novo bloco',[{r:'Nome do bloco'},{r:'Descrição (aparece abaixo do nome)',m:1,rows:3}],f=>mudaAdd(()=>{ADD.nb.push({n:f[0],d:f[1]})}))}
+function novaCat(i){formAdd('Nova categoria em “'+B[i].n+'”',[{r:'Título da categoria'},{r:'Subtítulo (opcional)',m:1,rows:2},{r:'Texto (opcional)',m:1,rows:6}],f=>mudaAdd(()=>{ADD.np.push({b:i,t:f[0],k:f[1],x:f[2]?[f[2]]:[]})}))}
+function addTxt(i,j){const n=adIx(i,j);if(n<0)return;
+formAdd('Adicionar texto em “'+B[i].p[j].t+'”',[{r:'Texto',m:1,rows:6}],f=>mudaAdd(()=>{ADD.np[n].x.push(f[0])}))}
 function gst(m){const e=document.getElementById('gs');if(e)e.textContent=m}
 const ed=id=>'<button type="button" class="mv ed" aria-label="Editar texto" onclick="editT(event,\''+id+'\')">✎</button>';
 // Campos do id: bloco (nome, descrição), tela (título, subtítulo) ou item
@@ -201,7 +232,7 @@ const id=i.dataset.id;if(i.checked)delete OFF[id];else OFF[id]=true;
 const el=i.closest('details,.row');if(el)el.classList.toggle('off',!i.checked);if(/^b\d+$/.test(id))renumber();saveOff()}
 let TOK=null;
 async function api(path,opt){const r=await fetch(path,opt);let j=null;try{j=await r.json()}catch(e){}if(!r.ok)throw new Error((j&&j.erro)||('Erro '+r.status));return j}
-async function saveCfg(){gst('Salvando…');try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOK},body:JSON.stringify({off:OFF,sup:SUP,ord:ordem(),tx:TX})});gst('Salvo ✓')}catch(e){gst('Não foi possível salvar: '+e.message);throw e}}
+async function saveCfg(){gst('Salvando…');try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOK},body:JSON.stringify({off:OFF,sup:SUP,ord:ordem(),tx:TX,add:ADD})});gst('Salvo ✓')}catch(e){gst('Não foi possível salvar: '+e.message);throw e}}
 function saveOff(){SAVEQ=SAVEQ.then(()=>saveCfg()).catch(()=>{})}
 function syncTree(){document.querySelectorAll('#tree input.sw').forEach(i=>{const on=!OFF[i.dataset.id];i.checked=on;const el=i.closest('details,.row');if(el)el.classList.toggle('off',!on)});renumber()}
 function resetAll(){const d=ov('<h3>Reativar todos os itens?</h3><p>Tudo voltará a aparecer para os usuários.</p><button class="btn" id="ok">Reativar todos</button><button class="btn l" id="cn">Cancelar</button>');d.querySelector('#cn').onclick=()=>d.remove();d.querySelector('#ok').onclick=()=>{OFF={};d.remove();syncTree();saveOff()}}
@@ -261,7 +292,7 @@ if(acao=='aprovar')return run();
 const d=ov('<h3>'+(acao=='remover'?'Remover o acesso?':'Recusar o cadastro?')+'</h3><p>'+h(login)+'</p><button class="btn" id="ok">Confirmar</button><button class="btn l" id="cn">Cancelar</button>');
 d.querySelector('#cn').onclick=()=>d.remove();d.querySelector('#ok').onclick=()=>{d.remove();run()}}
 function admOut(){ADM=false;TOK=null;ROLE=null;NOME='';USERS=[];render()}
-async function loadCfg(){try{const j=await api('/api/config',{cache:'no-store'});if(j&&j.exists){OFF=j.off||{};SUP=j.sup||{};ORD=Array.isArray(j.ord)?j.ord:[];TX=j.tx&&typeof j.tx=='object'?j.tx:{};applyTx()}}catch(e){}}
+async function loadCfg(){try{const j=await api('/api/config',{cache:'no-store'});if(j&&j.exists){OFF=j.off||{};SUP=j.sup||{};ORD=Array.isArray(j.ord)?j.ord:[];TX=j.tx&&typeof j.tx=='object'?j.tx:{};ADD=normAdd(j.add);buildB();applyTx()}}catch(e){}}
 const livre=()=>v.s!='splash'&&!document.querySelector('.zm2,.zm');
 async function initCaps(){await loadCfg();if(livre()&&!ADM)render();
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState=='visible'&&!ADM){await loadCfg();if(livre())render()}})}

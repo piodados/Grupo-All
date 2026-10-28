@@ -40,7 +40,21 @@ function limpar(b) {
       }
     }
   }
-  return { off, sup, ord, tx };
+  // Blocos e categorias criados na gestão (só crescem; a posição define o id)
+  const add = { nb: [], np: [] };
+  const t = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  if (b && b.add && typeof b.add === 'object') {
+    if (Array.isArray(b.add.nb)) for (const x of b.add.nb) if (x && t(x.n, 80) && add.nb.length < 30) add.nb.push({ n: t(x.n, 80), d: t(x.d, 400) });
+    if (Array.isArray(b.add.np)) {
+      for (const x of b.add.np) {
+        if (x && Number.isInteger(x.b) && x.b >= 0 && x.b < 100 && t(x.t, 100) && add.np.length < 150) {
+          const xs = (Array.isArray(x.x) ? x.x : []).map((z) => t(z, 4000)).filter(Boolean).slice(0, 40);
+          add.np.push({ b: x.b, t: t(x.t, 100), k: t(x.k, 200), x: xs });
+        }
+      }
+    }
+  }
+  return { off, sup, ord, tx, add };
 }
 
 module.exports = async (req, res) => {
@@ -48,7 +62,7 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const c = await getCfg();
       res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=10');
-      return res.status(200).json(c ? { exists: true, off: c.off || {}, sup: c.sup || {}, ord: c.ord || [], tx: c.tx || {} } : { exists: false });
+      return res.status(200).json(c ? { exists: true, off: c.off || {}, sup: c.sup || {}, ord: c.ord || [], tx: c.tx || {}, add: c.add || { nb: [], np: [] } } : { exists: false });
     }
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'POST') {
